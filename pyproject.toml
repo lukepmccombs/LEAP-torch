@@ -1,0 +1,17 @@
+[project]
+name = "leap_torch"
+version = "0.0.1"
+authors = [
+  { name="Luke McCombs", email="luke@wodsys.dev" },
+]
+description = "A package for directly evolving pytorch module parameters with LEAP."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+[tools.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
