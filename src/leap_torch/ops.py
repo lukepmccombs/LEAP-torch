@@ -29,14 +29,45 @@ def torch_parameters_mutate_gaussian(
         std_tensor = torch.tensor(std)
         
         for param in module.parameters():
-            # Create a set of indices corresponding to where the update occurs
+            # Create a mask of where the updates will occur
             mask = torch.rand(param.size()) < p_mutate_tensor
-            idx = torch.where(mask)
-            
-            # Create the gaussian shift
-            # The length of the indices on any axis is the number of updates
-            shift = torch.randn(len(idx[0])) * std_tensor
-            param[idx] += shift.to(param)
+            # Create a gaussian shift with the provided std
+            gauss = torch.normal(0, std_tensor, param.size())
+
+            # Mask out the gaussian shift for applying to the array
+            shift = torch.where(mask, gauss, 0)
+            param += shift
+    
+    return module
+
+
+def torch_parameters_mutate_gaussian2(
+            module: nn.Module, p_mutate: float, std: float
+        ):
+    """
+    Mutates each parameter of the provided pytorch module at a probability
+    p_mutate per element, with a gaussian shift of standard deviation std.
+    This operator is applied in place, but returns the module for convenicence.
+
+    :param module: the pytorch module to be mutated.
+    :param p_mutate: the probability of mutation per element.
+    :param std: the standard deviation of the gaussian shift applied to the
+        mutated elements.
+    :return: the mutated module.
+    """
+    with torch.no_grad():
+        p_mutate_tensor = torch.tensor(p_mutate)
+        std_tensor = torch.tensor(std)
+        
+        for param in module.parameters():
+            # Create a mask of where the updates will occur
+            mask = torch.rand(param.size()) < p_mutate_tensor
+            # Create a gaussian shift with the provided std
+            gauss = torch.normal(0, std_tensor, param.size())
+
+            # Mask out the gaussian shift for applying to the array
+            shift = torch.where(mask, gauss, 0)
+            param += shift
     
     return module
 
