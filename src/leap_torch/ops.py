@@ -41,36 +41,6 @@ def torch_parameters_mutate_gaussian(
     return module
 
 
-def torch_parameters_mutate_gaussian2(
-            module: nn.Module, p_mutate: float, std: float
-        ):
-    """
-    Mutates each parameter of the provided pytorch module at a probability
-    p_mutate per element, with a gaussian shift of standard deviation std.
-    This operator is applied in place, but returns the module for convenicence.
-
-    :param module: the pytorch module to be mutated.
-    :param p_mutate: the probability of mutation per element.
-    :param std: the standard deviation of the gaussian shift applied to the
-        mutated elements.
-    :return: the mutated module.
-    """
-    with torch.no_grad():
-        p_mutate_tensor = torch.tensor(p_mutate)
-        std_tensor = torch.tensor(std)
-        
-        for param in module.parameters():
-            # Create a mask of where the updates will occur
-            mask = torch.rand(param.size()) < p_mutate_tensor
-            # Create a gaussian shift with the provided std
-            gauss = torch.normal(0, std_tensor, param.size())
-
-            # Mask out the gaussian shift for applying to the array
-            shift = torch.where(mask, gauss, 0)
-            param += shift
-    
-    return module
-
 def _compute_expected_probability(module: nn.Module, expected_num_mutations: float):
     """
     Computes the probability of mutation to have the expected number of mutations
@@ -154,15 +124,13 @@ def torch_parameters_uniform_crossover(
             
             # Creates a mask of which values to swap, then moves it to the relevant devices
             swap_mask = torch.rand(param_a.size()) < p_swap
-            swap_mask_a = swap_mask.to(param_a.device)
-            swap_mask_b = swap_mask.to(param_b.device)
-            
-            # The first needs to be cloned since these return views if on the same device.
-            swap_a = param_a[swap_mask_a].to(param_b.device).clone()
-            swap_b = param_b[swap_mask_b].to(param_a.device)
-            
-            param_a[swap_mask_a] = swap_b
-            param_b[swap_mask_b] = swap_a
+
+            # param_a must be cloned since we need it's original value if on the same device
+            a_on_b = param_a.to(param_b.device).clone()
+            b_on_a = param_b.to(param_a.device)
+
+            torch.where(swap_mask, b_on_a, param_a, out=param_a)
+            torch.where(swap_mask, a_on_b, param_b, out=param_b)
     
     return module_a, module_b
 
