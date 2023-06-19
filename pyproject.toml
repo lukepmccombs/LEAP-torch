@@ -12,6 +12,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dynamic = ["dependencies"]
-[tools.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = [
+  "gymnasium", "matplotlib", "torch"
+]

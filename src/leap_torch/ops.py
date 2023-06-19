@@ -1,6 +1,7 @@
 from .util import check_module
 
 from leap_ec.ops import iteriter_op
+from leap_ec.ops import UniformCrossover as _UniformCrossover
 
 import torch
 from torch import nn
@@ -94,7 +95,8 @@ def mutate_guassian(
         individual.genome = torch_parameters_mutate_gaussian(
                 individual.genome, p_mutate, std
             )
-        individual.fitness = None
+        # individual.fitness = None
+        individual.evaluation = None
         
         yield individual
 
@@ -134,51 +136,31 @@ def torch_parameters_uniform_crossover(
     
     return module_a, module_b
 
-def uniform_crossover(p_swap: float=0.2, p_xover: float=1.0):
+
+class UniformCrossover(_UniformCrossover):
+    """Parameterized uniform crossover iterates through two parents' genomes,
+    provided they consist of pytorch modules, and swaps each of their genes with the given probability.
+
+    In a classic paper, De Jong and Spears showed that this operator works
+    particularly well when the swap probability `p_swap` is set to about 0.2.  LEAP
+    thus uses this value as its default.
+
+        De Jong, Kenneth A., and W. Spears. "On the virtues of parameterized uniform crossover."
+        *Proceedings of the 4th international conference on genetic algorithms.* Morgan Kaufmann Publishers, 1991.
+
+    :param p_swap: how likely are we to swap each pair of genes when crossover
+        is performed
+    :param float p_xover: the probability that crossover is performed in the
+        first place
+    :param bool persist_children: whether unyielded children should persist between calls.
+        This is useful for `leap_ec.distrib.asynchronous.steady_state`, where the pipeline
+        may only produce one individual at a time.
+    :return: a pipeline operator that returns two recombined individuals (with probability
+        p_xover), or two unmodified individuals (with probability 1 - p_xover)
     """
-    Creates a function that will uniformly cross over the genomes
-    of individuals supplied to it. Cross over occurs at a probability
-    equal to p_xover, with a probability of elements coming from the
-    opposing parent of p_swap.
 
-    :param p_swap: the probability that an element for a crossed over
-        genome comes from the opposing parent.
-    :param p_xover: the probability that two parents will be crossed
-        over as opposed to forwarded on.
-    :return: a function that behaves as a pipeline operator which will
-        perform crossover with the given parameters.
-    """
-    
-    second_child = None
-    
-    @iteriter_op
-    def _do_crossover(next_individual: Iterator):
-        """
-        A pipeline operator which uniformly crosses over the genomes
-        of individuals supplied to it.
-
-        :param next_individual: the individuals to be crossed over.
-        :yield: individuals which may have been crossed over.
-        """
-        nonlocal second_child
-        
-        if second_child is not None:
-            ret_child, second_child = second_child, None
-            yield ret_child
-                
-        while True:
-            first_child, second_child = islice(next_individual, 2)
-            check_module(first_child.genome)
-            check_module(second_child.genome)
-
-            if np.random.random_sample() < p_xover:
-                first_child.genome, second_child.genome = torch_parameters_uniform_crossover(
-                        first_child.genome, second_child.genome, p_swap
-                    )
-                first_child.fitness = second_child.fitness = None
-            
-            yield first_child
-            ret_child, second_child = second_child, None
-            yield ret_child
-    
-    return _do_crossover
+    def recombine(self, parent_a, parent_b):
+        parent_a.genome, parent_b.genome = torch_parameters_uniform_crossover(
+                parent_a.genome, parent_b.genome, self.p_swap
+            )
+        return parent_a, parent_b
