@@ -27,8 +27,8 @@ class NumpyWrapper:
     
     def __call__(self, *args, **kwargs):
         # Convert args to tensors on device
-        args = [torch.tensor(a, device=self.device) for a in args]
-        kwargs = {k: torch.tensor(a, device=self.device) for k, a in kwargs.items()}
+        args = [torch.tensor(a, device=self.device).float() for a in args]
+        kwargs = {k: torch.tensor(a, device=self.device).float() for k, a in kwargs.items()}
         
         if self.nograd:
             with torch.no_grad():
