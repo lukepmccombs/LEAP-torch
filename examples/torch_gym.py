@@ -1,4 +1,4 @@
-from leap_torch.ops import mutate_guassian, uniform_crossover
+from leap_torch.ops import mutate_gaussian, uniform_crossover
 from leap_torch.initializers import create_instance
 from leap_torch.decoders import NumpyDecoder
 
@@ -110,7 +110,7 @@ def main(
                 pipeline=[
                     ops.tournament_selection,
                     ops.clone,
-                    mutate_guassian(std=mutate_std, expected_num_mutations=expected_num_mutations),
+                    mutate_gaussian(std=mutate_std, expected_num_mutations=expected_num_mutations),
                     uniform_crossover(),
                     *eval_pool_pipeline,
                     save_probe,
