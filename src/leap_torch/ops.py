@@ -1,7 +1,7 @@
 from .util import check_module
 
-from leap_ec.ops import iteriter_op
-from leap_ec.ops import UniformCrossover as _UniformCrossover
+from leap_ec.ops import iteriter_op, UniformCrossover as _UniformCrossover
+from leap_ec.util import wrap_curry
 
 import torch
 from torch import nn
@@ -59,9 +59,9 @@ def _compute_expected_probability(module: nn.Module, expected_num_mutations: flo
         sum_size += np.prod(param.size(), dtype=np.float64)
     return expected_num_mutations / sum_size
 
-@curry
+@wrap_curry
 @iteriter_op
-def mutate_guassian(
+def mutate_gaussian(
             next_individual: Iterator,
             std: float, *, expected_num_mutations: int=None, p_mutate: float=None,
         ):
@@ -99,6 +99,93 @@ def mutate_guassian(
         individual.evaluation = None
         
         yield individual
+
+
+def torch_parameters_mutate_bounded_polynomial(module, p_mutate: float, eta: float, low: float, high: float):
+    """
+    Mutates each parameter of the provided pytorch module at a probability
+    p_mutate per element, with a bounded polynomial update as specified in the NSGA-II paper.
+    This operator is applied in place, but returns the module for convenicence.
+
+    :param module: the pytorch module to be mutated.
+    :param p_mutate: the probability of mutation per element.
+    :param eta: crowding degree of the mutation, higher values result in smaller variation from the parent.
+    :param low: the lower bound of the parameter values.
+    :param high: the upper bound of the parameter values.
+    :return: the mutated module.
+    """
+    with torch.no_grad():
+        p_mutate_tensor = torch.tensor(p_mutate)
+        eta_p1 = torch.tensor(eta + 1.0)
+        eta_exponent = eta_p1 ** -1
+        diff = torch.tensor(high - low)
+        
+        for param in module.parameters():
+            # Note: this math has been heavily simplified from that of DEAP
+            # https://github.com/DEAP/deap/blob/master/deap/tools/mutation.py#L51
+
+            # If the element will be mutated, selects a value from -1 to 1
+            # At 0 the value isn't changed so we use that as a mask
+            rand = torch.where(
+                    torch.rand(param.size()) < p_mutate_tensor,
+                    torch.rand(param.size()) * 2 - 1,
+                    0
+                )
+            
+            xy = torch.where(rand < 0, high - param, param - low) / diff
+
+            v = 1 + torch.abs(rand) * (xy ** eta_p1 - 1)
+            # torch.sign returns 0 on 0, but it wouldn't change then anyways
+            delta = torch.sign(rand) * (1 - v ** eta_exponent) * diff
+            
+            # Clip the updated tensor and assign back to the parameter
+            torch.clip(param + delta, low, high, out=param)
+    
+    return module
+
+
+@wrap_curry
+@iteriter_op
+def mutate_bounded_polynomial(
+            next_individual: Iterator,
+            eta: float, low: float, high: float, *, expected_num_mutations: int=None, p_mutate: float=None,
+        ):
+    """
+    Applies a bounded polynomial mutation to the pytorch module genomes of individuals
+    supplied to this operator. One of an expected number of mutations,
+    expected_num_mutations, or the probability of mutation, p_mutate,
+    must be supplied. The mutation is as specified in the NSGA-II paper.
+
+    :param next_individual: the individuals to be mutated.
+    :param eta: crowding degree of the mutation, higher values result in smaller variation from the parent.
+    :param low: the lower bound of the parameter values.
+    :param high: the upper bound of the parameter values.
+    :param expected_num_mutations: the expected number of mutations to be
+        applied to each individual.
+    :param p_mutate: the probability of each element of the module's parameters
+        being mutated.
+    :yield: an individual which has been mutated.
+    """
+    assert expected_num_mutations is not None or p_mutate is not None,\
+        "One of expected_num_mutations or p_mutate must be specified"
+    assert expected_num_mutations is None or p_mutate is None,\
+        "Only one of expected_num_mutations or p_mutate should be specified"
+    
+    while True:
+        individual = next(next_individual)
+        check_module(individual.genome)
+        
+        if expected_num_mutations is not None:
+            p_mutate = _compute_expected_probability(individual.genome, expected_num_mutations)
+        
+        individual.genome = torch_parameters_mutate_bounded_polynomial(
+                individual.genome, p_mutate, eta, low, high
+            )
+        # Probably should wipe this
+        # individual.fitness = None
+        
+        yield individual
+
 
 def torch_parameters_uniform_crossover(
             module_a: nn.Module, module_b: nn.Module, p_swap: float
