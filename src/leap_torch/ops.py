@@ -129,7 +129,7 @@ def torch_parameters_mutate_bounded_polynomial(module, p_mutate: float, eta: flo
             rand = torch.where(
                     torch.rand(param.size()) < p_mutate_tensor,
                     torch.rand(param.size()) * 2. - 1.,
-                    0.
+                    torch.zeros(())
                 )
             
             xy = torch.where(rand < 0., high - param, param - low) / diff
