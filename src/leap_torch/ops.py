@@ -116,8 +116,8 @@ def torch_parameters_mutate_bounded_polynomial(module, p_mutate: float, eta: flo
     """
     with torch.no_grad():
         p_mutate_tensor = torch.tensor(p_mutate)
-        eta_p1 = torch.tensor(eta + 1.0)
-        eta_exponent = eta_p1 ** -1
+        eta_p1 = torch.tensor(eta + 1.)
+        eta_exponent = eta_p1 ** -1.
         diff = torch.tensor(high - low)
         
         for param in module.parameters():
@@ -128,15 +128,15 @@ def torch_parameters_mutate_bounded_polynomial(module, p_mutate: float, eta: flo
             # At 0 the value isn't changed so we use that as a mask
             rand = torch.where(
                     torch.rand(param.size()) < p_mutate_tensor,
-                    torch.rand(param.size()) * 2 - 1,
-                    0
+                    torch.rand(param.size()) * 2. - 1.,
+                    0.
                 )
             
-            xy = torch.where(rand < 0, high - param, param - low) / diff
+            xy = torch.where(rand < 0., high - param, param - low) / diff
 
-            v = 1 + torch.abs(rand) * (xy ** eta_p1 - 1)
+            v = 1. + torch.abs(rand) * (xy ** eta_p1 - 1.)
             # torch.sign returns 0 on 0, but it wouldn't change then anyways
-            delta = torch.sign(rand) * (1 - v ** eta_exponent) * diff
+            delta = torch.sign(rand) * (1. - v ** eta_exponent) * diff
             
             # Clip the updated tensor and assign back to the parameter
             torch.clip(param + delta, low, high, out=param)
